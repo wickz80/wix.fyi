@@ -20,9 +20,11 @@ export class HostStack extends cdk.Stack {
     const siteDomain = `www.${props?.domainName}`
 
     const hostedZone = new route53.PublicHostedZone(this, 'HostedZone', {
-      zoneName: domainName
+      zoneName: domainName,
     })
 
+    // MX, TXT and other DNS records must be added manually to this zone
+    // NS records must be copied from this zone to the domain name provider
     const zone = route53.HostedZone.fromHostedZoneAttributes(this, 'Zone', {
       hostedZoneId: hostedZone.hostedZoneId,
       zoneName: hostedZone.zoneName
@@ -83,7 +85,7 @@ export class HostStack extends cdk.Stack {
     })
 
     new s3deploy.BucketDeployment(this, 'DeployWebsite', {
-      sources: [s3deploy.Source.asset('../src')],
+      sources: [s3deploy.Source.asset('../public')],
       destinationBucket: bucket,
       distribution,
       distributionPaths: ['/*'],

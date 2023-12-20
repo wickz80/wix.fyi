@@ -8,18 +8,20 @@ import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront'
 import * as cloudfront_origins from 'aws-cdk-lib/aws-cloudfront-origins'
 
+interface HostStackProps extends cdk.StackProps {
+  domainName: string
+}
+
 export class HostStack extends cdk.Stack {
-  constructor (scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor (scope: Construct, id: string, props: HostStackProps) {
     super(scope, id, props)
 
-    const domainName = 'wix.fyi'
-    const siteDomain = `www.${domainName}`
+    const { domainName } = props
+    const siteDomain = `www.${props?.domainName}`
 
     const hostedZone = new route53.PublicHostedZone(this, 'HostedZone', {
       zoneName: domainName
     })
-    new cdk.CfnOutput(this, 'Site', { value: 'https://' + siteDomain })
-
 
     const zone = route53.HostedZone.fromHostedZoneAttributes(this, 'Zone', {
       hostedZoneId: hostedZone.hostedZoneId,
@@ -32,9 +34,7 @@ export class HostStack extends cdk.Stack {
       certificateName: domainName,
       validation: acm.CertificateValidation.fromDns(zone)
     })
-
     certificate.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
-    new cdk.CfnOutput(this, 'Certificate', { value: certificate.certificateArn })
 
     const bucket = new s3.Bucket(this, 'Bucket', {
       bucketName: siteDomain,
@@ -45,7 +45,7 @@ export class HostStack extends cdk.Stack {
         restrictPublicBuckets: false
       })
     })
-
+    
     const cloudfrontOAI = new cloudfront.OriginAccessIdentity(this, 'cloudfront-OAI');
     bucket.grantRead(cloudfrontOAI.grantPrincipal)
 
@@ -69,8 +69,6 @@ export class HostStack extends cdk.Stack {
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS
       }
     })
-
-    new cdk.CfnOutput(this, 'DistributionId', { value: distribution.distributionId })
 
     new route53.ARecord(this, 'WWWSiteAliasRecord', {
       zone,

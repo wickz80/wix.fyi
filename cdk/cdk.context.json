@@ -1,0 +1,10 @@
+{
+  "hosted-zone:account=097029023067:domainName=wix.fyi:region=us-west-2": {
+    "Id": "/hostedzone/Z06848355469QTFSG59D",
+    "Name": "wix.fyi."
+  },
+  "hosted-zone:account=097029023067:domainName=wix.fyi:region=us-east-1": {
+    "Id": "/hostedzone/Z06848355469QTFSG59D",
+    "Name": "wix.fyi."
+  }
+}

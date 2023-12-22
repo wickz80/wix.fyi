@@ -1,0 +1,17 @@
+.page {
+    margin: auto;
+    max-width: 800px;
+    min-height: 95vh;
+    font-family: Menlo, "Meslo LG", monospace;
+}
+
+.footer {
+    font-family: Menlo, "Meslo LG", monospace;
+    margin: auto;
+    max-width: 800px;
+    font-size: small;
+}
+
+.container {
+    padding: 1rem;
+}

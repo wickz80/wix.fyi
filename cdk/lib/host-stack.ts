@@ -20,7 +20,7 @@ export class HostStack extends cdk.Stack {
     const siteDomain = `www.${props?.domainName}`
 
     const hostedZone = new route53.PublicHostedZone(this, 'HostedZone', {
-      zoneName: domainName,
+      zoneName: domainName
     })
 
     // MX, TXT and other DNS records must be added manually to this zone
@@ -28,7 +28,7 @@ export class HostStack extends cdk.Stack {
     const zone = route53.HostedZone.fromHostedZoneAttributes(this, 'Zone', {
       hostedZoneId: hostedZone.hostedZoneId,
       zoneName: hostedZone.zoneName
-    }) 
+    })
 
     const certificate = new acm.Certificate(this, 'SiteCertificate', {
       domainName,
@@ -47,8 +47,8 @@ export class HostStack extends cdk.Stack {
         restrictPublicBuckets: false
       })
     })
-    
-    const cloudfrontOAI = new cloudfront.OriginAccessIdentity(this, 'cloudfront-OAI');
+
+    const cloudfrontOAI = new cloudfront.OriginAccessIdentity(this, 'cloudfront-OAI')
     bucket.grantRead(cloudfrontOAI.grantPrincipal)
 
     const distribution = new cloudfront.Distribution(this, 'SiteDistribution', {
@@ -65,7 +65,7 @@ export class HostStack extends cdk.Stack {
         }
       ],
       defaultBehavior: {
-        origin: new cloudfront_origins.S3Origin(bucket, {originAccessIdentity: cloudfrontOAI}),
+        origin: new cloudfront_origins.S3Origin(bucket, { originAccessIdentity: cloudfrontOAI }),
         compress: true,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS
@@ -88,7 +88,7 @@ export class HostStack extends cdk.Stack {
       sources: [s3deploy.Source.asset('../public')],
       destinationBucket: bucket,
       distribution,
-      distributionPaths: ['/*'],
+      distributionPaths: ['/*']
     })
   }
 }

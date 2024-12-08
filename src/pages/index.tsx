@@ -4,11 +4,10 @@ import PageContainer from "../components/page-container"
 
 const IndexPage: React.FC<PageProps> = () => (
   <PageContainer>
-    Welcome to wix.fyi. This is a website about me.
+    Hello!
     <br />
     <br />
-    This is a work in progress. Check back later for updates.
-
+    You've reached wix.fyi. This site serves as a tech blog, online portfolio, and experiment to play with shiny new web frameworks and technologies.
   </PageContainer>
 )
 

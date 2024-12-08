@@ -16,7 +16,7 @@ const PageContainer: React.FC<PageContainerProps> = ({ children }) => {
       </div>
     </div>
 
-    <div className="footer">Copyright 2023 wix.fyi</div>
+    <div className="footer">wix.fyi</div>
 
   </>
   );

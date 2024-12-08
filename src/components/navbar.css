@@ -12,6 +12,10 @@
     }
 }
 
+.link {
+    color: rgb(68, 68, 68)
+}
+
 .nav-link:hover {
     text-decoration: underline;
 }

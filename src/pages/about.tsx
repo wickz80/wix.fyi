@@ -1,5 +1,6 @@
 import React from 'react';
 import PageContainer from '../components/page-container';
+import { HeadProps } from 'gatsby';
 
 const AboutPage: React.FC = () =>
     <PageContainer>
@@ -22,3 +23,9 @@ const AboutPage: React.FC = () =>
     </PageContainer>
 
 export default AboutPage;
+
+export function Head(props: HeadProps) {
+    return (
+        <title>About</title>
+    )
+}

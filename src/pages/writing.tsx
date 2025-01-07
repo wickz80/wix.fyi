@@ -1,6 +1,7 @@
 import React from 'react';
 import PageContainer from '../components/page-container';
 import { Link } from 'gatsby-link';
+import { HeadProps } from 'gatsby';
 
 const WritingPage: React.FC = () =>
     <PageContainer>
@@ -11,3 +12,9 @@ const WritingPage: React.FC = () =>
     </PageContainer>
 
 export default WritingPage;
+
+export function Head(props: HeadProps) {
+    return (
+        <title>Writing</title>
+    )
+}

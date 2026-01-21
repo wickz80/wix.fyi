@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parallel Lines Art</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: black;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 8px;
+            color: white;
+            z-index: 100;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        input[type="range"] {
+            width: 200px;
+        }
+
+        input[type="color"] {
+            width: 60px;
+            height: 30px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .value-display {
+            display: inline-block;
+            margin-left: 10px;
+            font-weight: bold;
+            color: #00ff00;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="controls">
+        <div class="control-group">
+            <label>Number of Lines: <span class="value-display" id="lineCount">150</span></label>
+            <input type="range" id="numLinesSlider" min="10" max="300" value="150">
+        </div>
+        <div class="control-group">
+            <label>Line Color:</label>
+            <input type="color" id="colorPicker" value="#00ff00">
+        </div>
+        <div class="control-group">
+            <label>Gravity Strength: <span class="value-display" id="gravityValue">50</span></label>
+            <input type="range" id="gravitySlider" min="10" max="150" value="50">
+        </div>
+        <div class="control-group">
+            <label>Click and hold to create balls!</label>
+        </div>
+    </div>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Settings
+        let numLines = 150;
+        let lineColor = '#00ff00';
+        let maxPull = 50;
+        let balls = [];
+
+        // Mouse position for cursor gravity
+        let mouseX = window.innerWidth / 2;
+        let mouseY = window.innerHeight / 2;
+
+        // Ball creation state
+        let isHoldingMouse = false;
+        let holdStartTime = 0;
+        let holdX = 0;
+        let holdY = 0;
+        let currentBallSize = 0;
+
+        // Ball class
+        class Ball {
+            constructor(x, y, radius) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 12 + (Math.random() > 0.5 ? 3 : -3);
+                this.vy = 0;
+                this.radius = radius;
+                this.maxRadius = radius;
+                this.gravity = 0.6;
+                this.bounce = 0.85;
+                this.createdTime = Date.now();
+                this.lifetime = 5000; // 5 seconds
+            }
+
+            update() {
+                this.vy += this.gravity;
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Bounce on bottom
+                if (this.y + this.radius > canvas.height) {
+                    this.y = canvas.height - this.radius;
+                    this.vy *= -this.bounce;
+                }
+
+                // Bounce on left and right walls
+                if (this.x - this.radius < 0) {
+                    this.x = this.radius;
+                    this.vx *= -this.bounce;
+                } else if (this.x + this.radius > canvas.width) {
+                    this.x = canvas.width - this.radius;
+                    this.vx *= -this.bounce;
+                }
+
+                // Decay after lifetime
+                const age = Date.now() - this.createdTime;
+                if (age > this.lifetime) {
+                    const decayProgress = (age - this.lifetime) / 1000; // 1 second to fully decay
+                    this.radius = this.maxRadius * Math.max(0, 1 - decayProgress);
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = lineColor;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            isDecayed() {
+                return this.radius <= 0;
+            }
+        }
+
+        // Set canvas size to full window
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Get control elements
+        const numLinesSlider = document.getElementById('numLinesSlider');
+        const lineCountDisplay = document.getElementById('lineCount');
+        const colorPicker = document.getElementById('colorPicker');
+        const gravitySlider = document.getElementById('gravitySlider');
+        const gravityValueDisplay = document.getElementById('gravityValue');
+
+        // Event listeners for controls
+        numLinesSlider.addEventListener('input', (e) => {
+            numLines = parseInt(e.target.value);
+            lineCountDisplay.textContent = numLines;
+        });
+
+        colorPicker.addEventListener('input', (e) => {
+            lineColor = e.target.value;
+        });
+
+        gravitySlider.addEventListener('input', (e) => {
+            maxPull = parseInt(e.target.value);
+            gravityValueDisplay.textContent = maxPull;
+        });
+
+        // Track mouse position
+        canvas.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+
+            if (isHoldingMouse) {
+                holdX = e.clientX;
+                holdY = e.clientY;
+            }
+        });
+
+        // Mouse down to start growing ball
+        canvas.addEventListener('mousedown', (e) => {
+            isHoldingMouse = true;
+            holdStartTime = Date.now();
+            holdX = e.clientX;
+            holdY = e.clientY;
+            currentBallSize = 5;
+        });
+
+        // Mouse up to release ball
+        canvas.addEventListener('mouseup', (e) => {
+            if (isHoldingMouse) {
+                balls.push(new Ball(holdX, holdY, currentBallSize));
+                isHoldingMouse = false;
+                currentBallSize = 0;
+            }
+        });
+
+        // Resize canvas when window resizes
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        // Calculate gravity effect from a single source point
+        function calculateGravityPull(pointX, pointY, sourceX, sourceY, gravityStrength) {
+            const dx = pointX - sourceX;
+            const dy = pointY - sourceY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < 5) {
+                return sourceY - pointY;
+            }
+
+            const pull = gravityStrength / (distance / 100 + 1);
+            const angle = Math.atan2(sourceY - pointY, sourceX - pointX);
+            return Math.sin(angle) * pull;
+        }
+
+        function draw() {
+            // Grow ball while holding mouse (faster growth)
+            if (isHoldingMouse) {
+                const holdDuration = Date.now() - holdStartTime;
+                currentBallSize = Math.min(5 + holdDuration / 15, 80); // Faster: was /20, now /15
+            }
+
+            // Update balls and remove decayed ones
+            for (let i = balls.length - 1; i >= 0; i--) {
+                balls[i].update();
+                if (balls[i].isDecayed()) {
+                    balls.splice(i, 1);
+                }
+            }
+
+            // Fill background
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw horizontal lines with gravity effects
+            ctx.strokeStyle = lineColor;
+            ctx.lineWidth = 1;
+
+            const spacing = canvas.height / (numLines + 1);
+
+            for (let i = 1; i <= numLines; i++) {
+                const baseY = spacing * i;
+
+                ctx.beginPath();
+
+                for (let x = 0; x <= canvas.width; x += 5) {
+                    let totalPullY = 0;
+
+                    // Add cursor gravity
+                    totalPullY += calculateGravityPull(x, baseY, mouseX, mouseY, maxPull);
+
+                    // Add each ball's gravity (scaled by ball size)
+                    for (let ball of balls) {
+                        const ballGravityStrength = maxPull * (ball.radius / 20); // Scale gravity by ball size
+                        totalPullY += calculateGravityPull(x, baseY, ball.x, ball.y, ballGravityStrength);
+                    }
+
+                    // Add growing ball's gravity if holding mouse
+                    if (isHoldingMouse) {
+                        const growingBallGravity = maxPull * (currentBallSize / 20);
+                        totalPullY += calculateGravityPull(x, baseY, holdX, holdY, growingBallGravity);
+                    }
+
+                    const y = baseY + totalPullY;
+
+                    if (x === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+
+                ctx.stroke();
+            }
+
+            // Draw balls
+            for (let ball of balls) {
+                ball.draw();
+            }
+
+            // Draw growing ball if holding mouse
+            if (isHoldingMouse) {
+                ctx.fillStyle = lineColor;
+                ctx.globalAlpha = 0.7;
+                ctx.beginPath();
+                ctx.arc(holdX, holdY, currentBallSize, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        requestAnimationFrame(draw);
+    </script>
+</body>
+
+</html>

@@ -40,32 +40,21 @@ export class HostStack extends cdk.Stack {
 
     const bucket = new s3.Bucket(this, 'Bucket', {
       bucketName: siteDomain,
-      blockPublicAccess: new s3.BlockPublicAccess({
-        blockPublicAcls: false,
-        ignorePublicAcls: false,
-        blockPublicPolicy: false,
-        restrictPublicBuckets: false
-      })
+      websiteIndexDocument: 'index.html',
+      websiteErrorDocument: '404.html',
+      publicReadAccess: true,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS
     })
-
-    const cloudfrontOAI = new cloudfront.OriginAccessIdentity(this, 'cloudfront-OAI')
-    bucket.grantRead(cloudfrontOAI.grantPrincipal)
 
     const distribution = new cloudfront.Distribution(this, 'SiteDistribution', {
       certificate,
       defaultRootObject: 'index.html',
       domainNames: [siteDomain, domainName],
       minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
-      errorResponses: [
-        {
-          httpStatus: 404,
-          responseHttpStatus: 404,
-          responsePagePath: '/error/index.html',
-          ttl: cdk.Duration.minutes(30)
-        }
-      ],
       defaultBehavior: {
-        origin: new cloudfront_origins.S3Origin(bucket, { originAccessIdentity: cloudfrontOAI }),
+        origin: new cloudfront_origins.HttpOrigin(bucket.bucketWebsiteDomainName, {
+          protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY
+        }),
         compress: true,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS

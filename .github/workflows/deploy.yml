@@ -1,0 +1,61 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            cdk/package-lock.json
+
+      - name: Install site dependencies
+        run: npm ci
+
+      - name: Install CDK dependencies
+        run: npm ci
+        working-directory: cdk
+
+      - name: Build site
+        run: npm run build
+        env:
+          GATSBY_TELEMETRY_DISABLED: '1'
+
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::097029023067:role/wix-fyi-github-deploy
+          aws-region: us-east-1
+          allowed-account-ids: '097029023067'
+          role-session-name: github-${{ github.run_id }}
+
+      - name: Deploy site with CDK
+        run: npx --no-install cdk deploy HostStack --require-approval never --ci
+        working-directory: cdk

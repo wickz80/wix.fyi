@@ -20,3 +20,63 @@ These files are then copied to S3 and deployed via CDK.
 cd cdk
 npx cdk deploy
 ```
+
+### Automatic production deployment
+
+[Deploy production](.github/workflows/deploy.yml) builds and deploys `HostStack`
+on every push to `main`, including merged PRs and pushes containing multiple
+commits. It installs both lockfiles with `npm ci`, builds Gatsby, then runs CDK
+to upload `public/` to S3 and invalidate CloudFront. The Actions tab also offers
+a manual run on `main`. Deployments run one at a time; an active deployment
+finishes before the latest pending push runs.
+
+Authentication uses GitHub OIDC and temporary AWS credentials, following the
+[AWS credentials action](https://github.com/aws-actions/configure-aws-credentials).
+No AWS access keys or GitHub secrets are needed. The IAM trust policy permits
+only `wickz80/wix.fyi` on `main`. The workflow intentionally uses a branch OIDC
+subject; adding a GitHub environment to the job requires updating that policy.
+
+#### One-time AWS setup
+
+Run these commands from the repository root with your usual AWS administrator
+credentials for account `097029023067`. The production region is `us-east-1`.
+
+1. Confirm the account and the existing CDK bootstrap stack:
+
+   ```shell
+   aws sts get-caller-identity
+   aws cloudformation describe-stacks --stack-name CDKToolkit --region us-east-1
+   ```
+
+   The IAM policy uses the default CDK bootstrap qualifier, `hnb659fds`. If this
+   environment has never been bootstrapped, install the CDK dependencies and run
+   `cd cdk && npx cdk bootstrap aws://097029023067/us-east-1` first. The workflow
+   assumes the existing bootstrap deployment, file publishing, and lookup roles;
+   CloudFormation continues using its existing execution role and permissions.
+
+2. Check whether the account already has GitHub's OIDC provider:
+
+   ```shell
+   aws iam list-open-id-connect-providers
+   ```
+
+3. Create the deployment role using the included standalone CloudFormation
+   template (this does not deploy or change the website):
+
+   ```shell
+   aws cloudformation deploy \
+     --template-file cdk/github-actions.yaml \
+     --stack-name wix-fyi-github-actions \
+     --region us-east-1 \
+     --capabilities CAPABILITY_NAMED_IAM
+   ```
+
+   If GitHub's provider already exists, append:
+
+   ```shell
+   --parameter-overrides ExistingOidcProviderArn=arn:aws:iam::097029023067:oidc-provider/token.actions.githubusercontent.com
+   ```
+
+After setup, merge the workflow into `main` to trigger the first deployment.
+The role ARN and account in the workflow match this setup template and the
+current production CDK configuration.

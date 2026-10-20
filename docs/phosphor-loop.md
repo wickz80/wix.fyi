@@ -1,24 +1,64 @@
 # Phosphor Loop infrastructure
 
-Infrastructure code: [host-stack.ts](../cdk/lib/host-stack.ts).
-To inspect proposed changes against AWS, run `cd cdk && npx cdk diff HostStack`.
-Generated diff snapshots are not maintained in this repository.
+Infrastructure code:
 
-All permanent app infrastructure is in `cdk/lib/host-stack.ts`: a retained private
-bucket with encryption/public-access blocking/HTTPS enforcement, CloudFront
-origin access identity, `/loop` and `/loop/*` behaviors, redirect/prefix-rewrite
-function, and the GitHub OIDC deployment role. The app publishes bucket-root files;
-CloudFront strips the public `/loop` prefix. No root website bucket permissions
-are granted to the app role. No manually maintained console settings are needed.
+- [phosphor-loop-stack.ts](../cdk/lib/phosphor-loop-stack.ts): retained private
+  bucket, encryption/public-access blocking/HTTPS enforcement, origin access
+  identity, and the GitHub OIDC deployment role. Add future app session storage,
+  APIs, and integrations here.
+- [host-stack.ts](../cdk/lib/host-stack.ts): shared domain/certificate/distribution,
+  `/loop` and `/loop/*` routing, cache isolation, redirect/prefix rewrite, and the
+  distribution-specific invalidation grant attached to the app role.
 
-Deploy CDK through this repo's normal main-branch workflow. The app workflow in
-wickz80/phosphor-loop-min only uploads its files and invalidates the loop paths.
-Use the stack outputs to update its `deploy/production.json` if resource IDs move.
-The shared GitHub OIDC provider is the one already used by this website.
+The website stack depends on the app stack. The app stack has no reverse
+reference, so it can deploy future backend changes independently:
+`cd cdk && npx cdk deploy PhosphorLoopStack --exclusively`.
+Changes to the shared URL routing still deploy HostStack.
 
-`cd cdk && npm test -- --runInBand` verifies routing, isolation, retention, and
-OIDC trust. `npx cdk diff HostStack` compares current source with deployed state;
-after deployment, the new app resources should no longer appear as additions.
+The website main-branch workflow deploys both stacks in dependency order and
+publishes Gatsby only to its original bucket. App main-branch pushes only upload
+the app bucket's root files and invalidate `/loop` paths; they do not run CDK.
+CloudFront strips the public `/loop` prefix. No write permissions for the root
+website bucket are granted to the app role. The existing account-wide GitHub
+OIDC provider is reused.
+
+Use `cd cdk && npm test -- --runInBand` for infrastructure checks and
+`npx cdk diff PhosphorLoopStack HostStack` to inspect proposed changes. Generated
+diffs and migration templates are not committed. Deployment identifiers in the
+app repo's `deploy/production.json` remain unchanged after the stack split.
+
+## Existing-resource migration
+
+The original resources were created in HostStack. Merely moving CDK constructs
+would attempt to recreate the named bucket and role. The migration uses
+[CloudFormation stack refactoring](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stack-refactoring.html)
+to move the existing bucket, bucket policy, OAI, role, and S3 role policy without
+replacing resources or copying objects. The distribution stays in HostStack.
+
+[split-phosphor-loop.py](../cdk/migrations/split-phosphor-loop.py) records that
+migration. It preserves the live website template so unrelated Gatsby assets
+cannot be included accidentally. This is a migration for the original deployment,
+not a step to rerun on already-migrated stacks or a fresh install.
+
+From `cdk`, after `npx cdk synth`:
+
+```sh
+python3 migrations/split-phosphor-loop.py prepare --workdir /tmp/phosphor-stack-split
+aws cloudformation wait change-set-create-complete --stack-name HostStack --change-set-name prepare-phosphor-stack-split
+aws cloudformation describe-change-set --stack-name HostStack --change-set-name prepare-phosphor-stack-split
+# Expect one new invalidation IAM policy and in-place policy/OAI updates, no replacements.
+aws cloudformation execute-change-set --stack-name HostStack --change-set-name prepare-phosphor-stack-split
+aws cloudformation wait stack-update-complete --stack-name HostStack
+python3 migrations/split-phosphor-loop.py plan --workdir /tmp/phosphor-stack-split
+python3 migrations/split-phosphor-loop.py inspect --workdir /tmp/phosphor-stack-split
+# Once CREATE_COMPLETE, expect five MOVE resource actions and one CREATE stack action.
+python3 migrations/split-phosphor-loop.py execute --workdir /tmp/phosphor-stack-split
+python3 migrations/split-phosphor-loop.py inspect --workdir /tmp/phosphor-stack-split
+# After ExecutionStatus EXECUTE_COMPLETE, normal CDK deployment normalizes metadata.
+npx cdk deploy PhosphorLoopStack HostStack
+```
+
+Fresh installations simply deploy both stacks normally; no migration is needed.
 
 GitHub OIDC trust uses the immutable subject for this repo (created after GitHub's
 July 2026 rollout):

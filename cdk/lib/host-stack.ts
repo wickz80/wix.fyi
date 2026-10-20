@@ -8,9 +8,11 @@ import * as targets from 'aws-cdk-lib/aws-route53-targets'
 import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront'
 import * as cloudfront_origins from 'aws-cdk-lib/aws-cloudfront-origins'
+import { type PhosphorLoopStack } from './phosphor-loop-stack'
 
 interface HostStackProps extends cdk.StackProps {
   domainName: string
+  phosphorLoop: PhosphorLoopStack
 }
 
 export class HostStack extends cdk.Stack {
@@ -47,14 +49,9 @@ export class HostStack extends cdk.Stack {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS
     })
 
-    // The visualizer owns its assets independently; Gatsby never deploys to this bucket.
-    const loopBucket = new s3.Bucket(this, 'PhosphorLoopBucket', {
-      bucketName: `wix-fyi-phosphor-loop-${this.account}`,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      enforceSSL: true
+    const loopOrigin = new cloudfront_origins.S3Origin(props.phosphorLoop.bucket, {
+      originAccessIdentity: props.phosphorLoop.originAccessIdentity
     })
-    const loopOrigin = new cloudfront_origins.S3Origin(loopBucket)
     const loopIndex = new cloudfront.Function(this, 'PhosphorLoopIndex', {
       code: cloudfront.FunctionCode.fromInline(`function handler(event) {
   var request = event.request;
@@ -119,40 +116,22 @@ export class HostStack extends cdk.Stack {
       target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution))
     })
 
-    const loopDeployRole = new iam.Role(this, 'PhosphorLoopDeployRole', {
-      roleName: 'wix-fyi-phosphor-loop-deploy',
-      assumedBy: new iam.FederatedPrincipal(
-        `arn:${cdk.Aws.PARTITION}:iam::${this.account}:oidc-provider/token.actions.githubusercontent.com`,
-        { StringEquals: {
-          'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-          // New GitHub repositories use immutable owner/repository IDs in sub.
-          'token.actions.githubusercontent.com:sub': 'repo:wickz80@32722332/phosphor-loop-min@1424659759:ref:refs/heads/main'
-        } },
-        'sts:AssumeRoleWithWebIdentity'
-      )
+    // The shared distribution grants only its own invalidation permission.
+    // Keeping this attachment here avoids a dependency back from the app stack.
+    new iam.Policy(this, 'PhosphorLoopInvalidationPolicy', {
+      roles: [props.phosphorLoop.deployRole],
+      statements: [new iam.PolicyStatement({
+        actions: ['cloudfront:CreateInvalidation', 'cloudfront:GetInvalidation'],
+        resources: [`arn:${cdk.Aws.PARTITION}:cloudfront::${this.account}:distribution/${distribution.distributionId}`]
+      })]
     })
-    loopDeployRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['s3:GetBucketLocation', 's3:ListBucket'],
-      resources: [loopBucket.bucketArn]
-    }))
-    loopDeployRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:AbortMultipartUpload'],
-      resources: [loopBucket.arnForObjects('*')]
-    }))
-    loopDeployRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['cloudfront:CreateInvalidation', 'cloudfront:GetInvalidation'],
-      resources: [`arn:${cdk.Aws.PARTITION}:cloudfront::${this.account}:distribution/${distribution.distributionId}`]
-    }))
-    new cdk.CfnOutput(this, 'PhosphorLoopDeployRoleArn', { value: loopDeployRole.roleArn })
-
-    new cdk.CfnOutput(this, 'PhosphorLoopBucketName', { value: loopBucket.bucketName })
     new cdk.CfnOutput(this, 'PhosphorLoopDistributionId', { value: distribution.distributionId })
 
     new s3deploy.BucketDeployment(this, 'DeployWebsite', {
       sources: [s3deploy.Source.asset('../public')],
       destinationBucket: bucket,
       // Phosphor Loop deploys independently from its own repository.
-      // Reserve its URL namespace here; its actual assets live in loopBucket.
+      // Reserve its URL namespace here; its actual assets live in the app stack's bucket.
       exclude: ['loop', 'loop/*'],
       distribution,
       distributionPaths: ['/*']

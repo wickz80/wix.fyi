@@ -2,21 +2,24 @@ import * as cdk from 'aws-cdk-lib'
 import { Template, Match } from 'aws-cdk-lib/assertions'
 import { runInNewContext } from 'vm'
 import { HostStack } from '../lib/host-stack'
+import { PhosphorLoopStack } from '../lib/phosphor-loop-stack'
 
-const stack = new HostStack(new cdk.App(), 'HostStack', {
-  domainName: 'wix.fyi', env: { account: '097029023067', region: 'us-east-1' }
-})
+const app = new cdk.App()
+const env = { account: '097029023067', region: 'us-east-1' }
+const phosphorLoop = new PhosphorLoopStack(app, 'PhosphorLoopStack', { env })
+const stack = new HostStack(app, 'HostStack', { domainName: 'wix.fyi', env, phosphorLoop })
 const template = Template.fromStack(stack)
+const appTemplate = Template.fromStack(phosphorLoop)
 
 test('the app bucket is private, separate from Gatsby, and retained on stack removal', () => {
-  template.hasResourceProperties('AWS::S3::Bucket', {
+  appTemplate.hasResourceProperties('AWS::S3::Bucket', {
     BucketName: 'wix-fyi-phosphor-loop-097029023067',
     PublicAccessBlockConfiguration: {
       BlockPublicAcls: true, BlockPublicPolicy: true,
       IgnorePublicAcls: true, RestrictPublicBuckets: true
     }
   })
-  const buckets = template.findResources('AWS::S3::Bucket')
+  const buckets = appTemplate.findResources('AWS::S3::Bucket')
   const loopId = Object.keys(buckets).find(id => buckets[id].Properties.BucketName === 'wix-fyi-phosphor-loop-097029023067')!
   expect(buckets[loopId].DeletionPolicy).toBe('Retain')
   const deploy = Object.values(template.findResources('Custom::CDKBucketDeployment'))[0]
@@ -47,7 +50,7 @@ test('the edge handler redirects the public entrypoint and strips its prefix for
 })
 
 test('GitHub can deploy only this dedicated bucket from the app main branch', () => {
-  template.hasResourceProperties('AWS::IAM::Role', {
+  appTemplate.hasResourceProperties('AWS::IAM::Role', {
     RoleName: 'wix-fyi-phosphor-loop-deploy',
     AssumeRolePolicyDocument: {
       Statement: Match.arrayWith([Match.objectLike({
@@ -59,7 +62,7 @@ test('GitHub can deploy only this dedicated bucket from the app main branch', ()
       })])
     }
   })
-  const resources = template.toJSON().Resources
+  const resources = appTemplate.toJSON().Resources
   const roleId = Object.keys(resources).find(id => resources[id].Properties?.RoleName === 'wix-fyi-phosphor-loop-deploy')!
   const policy = Object.values(resources).find((r: any) => r.Type === 'AWS::IAM::Policy' && r.Properties.Roles?.some((role: any) => role.Ref === roleId)) as any
   const loopId = Object.keys(resources).find(id => resources[id].Properties?.BucketName === 'wix-fyi-phosphor-loop-097029023067')!
@@ -71,7 +74,7 @@ test('GitHub can deploy only this dedicated bucket from the app main branch', ()
   }
 })
 
- test('rewritten app paths have a separate cache key from the homepage', () => {
+test('rewritten app paths have a separate cache key from the homepage', () => {
   const policy = Object.values(template.findResources('AWS::CloudFront::CachePolicy'))[0].Properties.CachePolicyConfig
   expect(policy.MinTTL).toBe(0)
   expect(policy.ParametersInCacheKeyAndForwardedToOrigin.HeadersConfig).toEqual({ HeaderBehavior: 'whitelist', Headers: ['x-phosphor-origin'] })
@@ -84,4 +87,14 @@ test('GitHub can deploy only this dedicated bucket from the app main branch', ()
   const request = context.handler({ request: { uri: '/loop/', headers: { 'x-phosphor-origin': { value: 'spoofed' } } } })
   expect(request.uri).toBe('/index.html')
   expect(request.headers['x-phosphor-origin'].value).toBe('loop')
+})
+
+
+test('the website depends on the app stack without a reverse dependency', () => {
+  expect(stack.dependencies).toContain(phosphorLoop)
+  expect(phosphorLoop.dependencies).toEqual([])
+  expect(Object.values(appTemplate.toJSON().Resources).some((r: any) => r.Type === 'AWS::CloudFront::Distribution')).toBe(false)
+  expect(Object.values(template.findResources('AWS::IAM::Policy')).some((r: any) => r.Properties.PolicyDocument.Statement.some((s: any) => s.Action.includes('cloudfront:CreateInvalidation')))).toBe(true)
+  expect(JSON.stringify(appTemplate.toJSON())).not.toContain('Fn::ImportValue')
+  expect(JSON.stringify(template.toJSON())).toContain('PhosphorLoopStack:ExportsOutput')
 })

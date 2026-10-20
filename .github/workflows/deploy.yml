@@ -61,5 +61,5 @@ jobs:
           role-session-name: github-${{ github.run_id }}
 
       - name: Deploy site with CDK
-        run: npx --no-install cdk deploy HostStack --require-approval never --ci
+        run: npx --no-install cdk deploy PhosphorLoopStack HostStack --require-approval never --ci
         working-directory: cdk

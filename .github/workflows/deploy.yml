@@ -48,6 +48,10 @@ jobs:
         env:
           GATSBY_TELEMETRY_DISABLED: '1'
 
+      - name: Check infrastructure and app routing
+        run: npm test -- --runInBand
+        working-directory: cdk
+
       - name: Authenticate to AWS
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:

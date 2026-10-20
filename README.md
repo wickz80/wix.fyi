@@ -85,9 +85,16 @@ current production CDK configuration.
 
 `https://wix.fyi/loop/` is deployed by
 [wickz80/phosphor-loop-min](https://github.com/wickz80/phosphor-loop-min) on pushes
-to that repository's `main`. It shares this site's S3 bucket and CloudFront
-certificate/distribution. `DeployWebsite` excludes `loop` and `loop/*` from its
-sync, so Gatsby deployments neither overwrite nor prune the app. Keep those
-exclusions if changing deployment tooling. The loop workflow uploads only to
-`loop/`, uses a separate GitHub OIDC role, and invalidates `/loop` and `/loop/*`.
-Its AWS setup/configuration lives in the app repository's `docs/deployment.md`.
+to that repository's `main`. This CDK stack creates a separate private
+`PhosphorLoopBucket` (`wix-fyi-phosphor-loop-097029023067`). CloudFront's `/loop`
+and `/loop/*` behaviors use that bucket via an origin access identity. A small
+viewer-request function redirects `/loop` to `/loop/`, strips the `/loop` prefix
+from bucket requests, and serves `index.html` for the app root.
+
+Only the app repository uploads into that dedicated bucket. Gatsby still deploys
+exclusively to the original website bucket. Its sync excludes the reserved
+`loop` namespace there, as an extra boundary. The app uses a separate GitHub
+OIDC role (`wix-fyi-phosphor-loop-deploy`), also created by this CDK stack,
+with no access to write the personal site's bucket. Its AWS setup/
+configuration lives in the app repository's `docs/deployment.md`. Stack outputs
+expose the loop bucket name and shared CloudFront distribution ID.

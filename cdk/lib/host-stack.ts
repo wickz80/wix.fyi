@@ -76,6 +76,9 @@ export class HostStack extends cdk.Stack {
     new s3deploy.BucketDeployment(this, 'DeployWebsite', {
       sources: [s3deploy.Source.asset('../public')],
       destinationBucket: bucket,
+      // Phosphor Loop deploys independently from its own repository.
+      // Sync exclusions also protect these keys from pruning.
+      exclude: ['loop', 'loop/*'],
       distribution,
       distributionPaths: ['/*']
     })

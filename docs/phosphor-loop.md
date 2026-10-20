@@ -1,9 +1,8 @@
 # Phosphor Loop infrastructure
 
-The [pre-deployment CDK diff](phosphor-loop-cdk.diff) was generated against live
-HostStack after the initial namespace-reservation change. The additional Gatsby
-asset ZIP hash change reflects local versus CI build outputs; the original site
-bucket, DNS records, certificate, and default CloudFront behavior are unchanged.
+Infrastructure code: [host-stack.ts](../cdk/lib/host-stack.ts).
+To inspect proposed changes against AWS, run `cd cdk && npx cdk diff HostStack`.
+Generated diff snapshots are not maintained in this repository.
 
 All permanent app infrastructure is in `cdk/lib/host-stack.ts`: a retained private
 bucket with encryption/public-access blocking/HTTPS enforcement, CloudFront

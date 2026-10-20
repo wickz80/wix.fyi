@@ -18,7 +18,7 @@ npm run build
 These files are then copied to S3 and deployed via CDK.
 ```shell
 cd cdk
-npx cdk deploy
+npx cdk deploy PhosphorLoopStack HostStack
 ```
 
 ### Automatic production deployment

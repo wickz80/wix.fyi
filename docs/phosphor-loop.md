@@ -19,3 +19,10 @@ The shared GitHub OIDC provider is the one already used by this website.
 `cd cdk && npm test -- --runInBand` verifies routing, isolation, retention, and
 OIDC trust. `npx cdk diff HostStack` compares current source with deployed state;
 after deployment, the new app resources should no longer appear as additions.
+
+GitHub OIDC trust uses the immutable subject for this repo (created after GitHub's
+July 2026 rollout):
+`repo:wickz80@32722332/phosphor-loop-min@1424659759:ref:refs/heads/main`.
+These IDs come from the repository's public GitHub metadata. The older website
+repo retains its own existing subject format. See
+[GitHub's subject format change](https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/).

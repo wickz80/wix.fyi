@@ -54,7 +54,7 @@ test('GitHub can deploy only this dedicated bucket from the app main branch', ()
         Action: 'sts:AssumeRoleWithWebIdentity',
         Condition: { StringEquals: {
           'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-          'token.actions.githubusercontent.com:sub': 'repo:wickz80/phosphor-loop-min:ref:refs/heads/main'
+          'token.actions.githubusercontent.com:sub': 'repo:wickz80@32722332/phosphor-loop-min@1424659759:ref:refs/heads/main'
         } }
       })])
     }

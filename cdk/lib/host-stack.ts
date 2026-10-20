@@ -114,7 +114,8 @@ export class HostStack extends cdk.Stack {
         `arn:${cdk.Aws.PARTITION}:iam::${this.account}:oidc-provider/token.actions.githubusercontent.com`,
         { StringEquals: {
           'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-          'token.actions.githubusercontent.com:sub': 'repo:wickz80/phosphor-loop-min:ref:refs/heads/main'
+          // New GitHub repositories use immutable owner/repository IDs in sub.
+          'token.actions.githubusercontent.com:sub': 'repo:wickz80@32722332/phosphor-loop-min@1424659759:ref:refs/heads/main'
         } },
         'sts:AssumeRoleWithWebIdentity'
       )

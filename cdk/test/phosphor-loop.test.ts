@@ -40,7 +40,7 @@ test('the edge handler redirects the public entrypoint and strips its prefix for
   expect(redirect.statusCode).toBe(308)
   expect(redirect.headers.location.value).toBe('/loop/')
   for (const [uri, expected] of [['/loop/', '/index.html'], ['/loop/js/app.js', '/js/app.js'], ['/loop/sw.js', '/sw.js'], ['/about/', '/about/']]) {
-    const request = { uri, querystring: { v: { value: 'abc' } } }
+    const request = { uri, headers: {}, querystring: { v: { value: 'abc' } } }
     expect(context.handler({ request }).uri).toBe(expected)
     expect(request.querystring.v.value).toBe('abc')
   }
@@ -69,4 +69,19 @@ test('GitHub can deploy only this dedicated bucket from the app main branch', ()
     expect(JSON.stringify(statement.Resource)).toContain(loopId)
     expect(JSON.stringify(statement.Resource)).not.toContain('Bucket83908E77')
   }
+})
+
+ test('rewritten app paths have a separate cache key from the homepage', () => {
+  const policy = Object.values(template.findResources('AWS::CloudFront::CachePolicy'))[0].Properties.CachePolicyConfig
+  expect(policy.MinTTL).toBe(0)
+  expect(policy.ParametersInCacheKeyAndForwardedToOrigin.HeadersConfig).toEqual({ HeaderBehavior: 'whitelist', Headers: ['x-phosphor-origin'] })
+  const distribution = Object.values(template.findResources('AWS::CloudFront::Distribution'))[0].Properties.DistributionConfig
+  for (const behavior of distribution.CacheBehaviors) {
+    expect(behavior.CachePolicyId).not.toEqual(distribution.DefaultCacheBehavior.CachePolicyId)
+  }
+  const context: any = {}
+  runInNewContext(Object.values(template.findResources('AWS::CloudFront::Function'))[0].Properties.FunctionCode, context)
+  const request = context.handler({ request: { uri: '/loop/', headers: { 'x-phosphor-origin': { value: 'spoofed' } } } })
+  expect(request.uri).toBe('/index.html')
+  expect(request.headers['x-phosphor-origin'].value).toBe('loop')
 })

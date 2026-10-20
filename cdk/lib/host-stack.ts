@@ -63,6 +63,8 @@ export class HostStack extends cdk.Stack {
       headers: { location: { value: '/loop/' } } };
   }
   if (request.uri.indexOf('/loop/') === 0) {
+    // Keep rewritten bucket keys separate from the website's cache entries.
+    request.headers['x-phosphor-origin'] = { value: 'loop' };
     request.uri = request.uri.slice(5);
     if (request.uri === '/') request.uri = '/index.html';
   }
@@ -71,6 +73,15 @@ export class HostStack extends cdk.Stack {
     })
     const loopBehavior: cloudfront.BehaviorOptions = {
       origin: loopOrigin,
+      cachePolicy: new cloudfront.CachePolicy(this, 'PhosphorLoopCache', {
+        headerBehavior: cloudfront.CacheHeaderBehavior.allowList('x-phosphor-origin'),
+        queryStringBehavior: cloudfront.CacheQueryStringBehavior.allowList('v'),
+        minTtl: cdk.Duration.seconds(0),
+        defaultTtl: cdk.Duration.days(1),
+        maxTtl: cdk.Duration.days(365),
+        enableAcceptEncodingGzip: true,
+        enableAcceptEncodingBrotli: true
+      }),
       compress: true,
       allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
